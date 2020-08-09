@@ -64,9 +64,19 @@ namespace MonoMod.Utils {
             }
 #endif
 
-            LocalBuilder[] locals = def.Body.Variables.Select(
+            var locals = def.Body.Variables.Select(
                 var => {
-                    LocalBuilder local = il.DeclareLocal(var.VariableType.ResolveReflection(), var.IsPinned);
+                    LocalBuilder local;
+                    if (var.VariableType.IsGenericParameter) {
+#if !NETSTANDARD
+                        local = il.DeclareLocal(mb.GetGenericArguments().First(a => a.Name == var.VariableType.Name));
+#else
+                        local = il.DeclareLocal(var.VariableType.ResolveReflection(), var.IsPinned);
+#endif
+                    } else {
+                        local = il.DeclareLocal(var.VariableType.ResolveReflection(), var.IsPinned);
+                    }
+
 #if !NETSTANDARD && !CECIL0_9
                     if (mb != null && defInfo != null && defInfo.TryGetName(var, out string name)) {
                         local.SetLocalSymInfo(name);
@@ -74,7 +84,7 @@ namespace MonoMod.Utils {
 #endif
                     return local;
                 }
-            ).ToArray();
+            ).ToList();
 
             // Pre-pass - Set up label map.
             Dictionary<Instruction, Label> labelMap = new Dictionary<Instruction, Label>();
@@ -178,9 +188,17 @@ namespace MonoMod.Utils {
 
                     } else if (operand is ParameterDefinition param) {
                         operand = param.Index + paramOffs;
-
+                    } else if (operand is GenericParameter genericVar) {
+#if !NETSTANDARD
+                        operand = mb.GetGenericArguments().First(arg => arg.Name == genericVar.Name);
+#endif
                     } else if (operand is MemberReference mref) {
+#if !NETSTANDARD
+                        MemberInfo member = mref.ResolveReflection(mb);
+#else
                         MemberInfo member = mref.ResolveReflection();
+#endif
+
                         operand = member;
 #if !NETSTANDARD
                         if (mb != null && member != null) {

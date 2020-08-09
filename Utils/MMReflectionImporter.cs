@@ -241,7 +241,7 @@ namespace MonoMod.Utils {
                 }
             }
 
-            throw new NotSupportedException();
+            return new GenericParameter(type.Name, context);
         }
 
         public FieldReference ImportReference(FieldInfo field, IGenericParameterProvider context) {

@@ -102,7 +102,15 @@ namespace MonoMod.Utils {
         public static MemberInfo ResolveReflection(this MemberReference mref)
             => _ResolveReflection(mref, null);
 
-        private static MemberInfo _ResolveReflection(MemberReference mref, Module[] modules) {
+#if !NETSTANDARD
+        public static MemberInfo ResolveReflection(this MemberReference mref, MethodBuilder mb) => _ResolveReflection(mref, null, mb);
+#endif
+
+#if !NETSTANDARD
+        private static MemberInfo _ResolveReflection(MemberReference mref, Module[] modules, MethodBuilder mb = null) {
+#else
+        private static MemberInfo _ResolveReflection(MemberReference mref, Module[] modules, object mb = null) {
+#endif
             if (mref == null)
                 return null;
 
@@ -166,8 +174,11 @@ namespace MonoMod.Utils {
 
             // Special cases.
             if (mref is GenericParameter genParam) {
-                // TODO: Handle GenericParameter in ResolveReflection.
-                throw new NotSupportedException("ResolveReflection on GenericParameter currently not supported");
+#if !NETSTANDARD
+                return mb.GetGenericArguments().First(arg => arg.Name == genParam.Name);
+#else
+                throw new NotSupportedException();
+#endif
             }
 
             if (mref is MethodReference method && mref.DeclaringType is ArrayType) {
@@ -293,8 +304,7 @@ namespace MonoMod.Utils {
 
             if (mref is GenericInstanceMethod mrefGenMethod) {
                 member = _ResolveReflection(mrefGenMethod.ElementMethod, modules);
-                member = (member as MethodInfo)?.MakeGenericMethod(mrefGenMethod.GenericArguments.Select(arg => _ResolveReflection(arg, null) as Type).ToArray());
-
+                member = (member as MethodInfo)?.GetGenericMethodDefinition().MakeGenericMethod(mrefGenMethod.GenericArguments.Select(arg => _ResolveReflection(arg, null, mb) as Type).ToArray());
             } else if (typeless) {
                 if (mref is MethodReference)
                     member = modules

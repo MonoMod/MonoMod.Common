@@ -79,9 +79,9 @@ namespace MonoMod.Utils.Cil {
 
         private VariableDefinition _(LocalBuilder handle) => _Variables[handle];
 
-        private TypeReference _(Type info) => IL.Body.Method.Module.ImportReference(info);
-        private FieldReference _(FieldInfo info) => IL.Body.Method.Module.ImportReference(info);
-        private MethodReference _(MethodBase info) => IL.Body.Method.Module.ImportReference(info);
+        private TypeReference _(Type info) => info.IsGenericParameter ? new GenericParameter(info.Name, IL.Body.Method) : IL.Body.Method.Module.ImportReference(info);
+        private FieldReference _(FieldInfo info) => IL.Body.Method.Module.ImportReference(info, IL.Body.Method);
+        private MethodReference _(MethodBase info) => IL.Body.Method.Module.ImportReference(info, IL.Body.Method);
 
         private int _ILOffset;
         public override int ILOffset => _ILOffset;

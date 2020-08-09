@@ -80,11 +80,21 @@ namespace MonoMod.Utils {
                 );
             }
 
+            IDictionary<string, GenericTypeParameterBuilder> typeParameters = null;
             Type[] argTypes;
             Type[][] argTypesModReq;
             Type[][] argTypesModOpt;
 
+            MethodBuilder mb = typeBuilder.DefineMethod(dmd.Name ?? (orig?.Name ?? def.Name).Replace('.', '_'),
+                System.Reflection.MethodAttributes.HideBySig | System.Reflection.MethodAttributes.Public | System.Reflection.MethodAttributes.Static,
+                CallingConventions.Standard);
+
             if (orig != null) {
+                if (orig.GetGenericArguments().Length > 0) {
+                    typeParameters = mb.DefineGenericParameters(orig.GetGenericArguments().Select( arg => arg.Name).ToArray())
+                        .ToDictionary(p => p.Name);
+                }
+
                 ParameterInfo[] args = orig.GetParameters();
                 int offs = 0;
                 if (!orig.IsStatic) {
@@ -102,12 +112,17 @@ namespace MonoMod.Utils {
                 }
 
                 for (int i = 0; i < args.Length; i++) {
-                    argTypes[i + offs] = args[i].ParameterType;
+                    argTypes[i + offs] = args[i].ParameterType.IsGenericParameter ? typeParameters[args[i].ParameterType.Name] : args[i].ParameterType;
                     argTypesModReq[i + offs] = args[i].GetRequiredCustomModifiers();
                     argTypesModOpt[i + offs] = args[i].GetOptionalCustomModifiers();
                 }
 
             } else {
+                if (def.GenericParameters?.Count > 0) {
+                    typeParameters = mb.DefineGenericParameters(def.GenericParameters.Select( arg => arg.Name).ToArray())
+                        .ToDictionary(p => p.Name);
+                }
+
                 int offs = 0;
                 if (def.HasThis) {
                     offs++;
@@ -130,23 +145,29 @@ namespace MonoMod.Utils {
                 List<Type> modOpt = new List<Type>();
 
                 for (int i = 0; i < def.Parameters.Count; i++) {
-                    _DMDEmit.ResolveWithModifiers(def.Parameters[i].ParameterType, out Type paramType, out Type[] paramTypeModReq, out Type[] paramTypeModOpt, modReq, modOpt);
-                    argTypes[i + offs] = paramType;
-                    argTypesModReq[i + offs] = paramTypeModReq;
-                    argTypesModOpt[i + offs] = paramTypeModOpt;
+                    if (def.Parameters[i].ParameterType.IsGenericParameter) {
+                        argTypes[i + offs] = typeParameters[def.Parameters[i].ParameterType.Name];
+                        argTypesModReq[i + offs] = new Type[0];
+                        argTypesModOpt[i + offs] = new Type[0];
+                    } else {
+                        _DMDEmit.ResolveWithModifiers(def.Parameters[i].ParameterType, out Type paramType, out Type[] paramTypeModReq, out Type[] paramTypeModOpt, modReq, modOpt);
+                        argTypes[i + offs] = paramType;
+                        argTypesModReq[i + offs] = paramTypeModReq;
+                        argTypesModOpt[i + offs] = paramTypeModOpt;
+                    }
                 }
             }
 
-            // Required because the return type modifiers aren't easily accessible via reflection.
-            _DMDEmit.ResolveWithModifiers(def.ReturnType, out Type returnType, out Type[] returnTypeModReq, out Type[] returnTypeModOpt);
+            mb.SetParameters(argTypes);
 
-            MethodBuilder mb = typeBuilder.DefineMethod(
-                dmd.Name ?? (orig?.Name ?? def.Name).Replace('.', '_'),
-                System.Reflection.MethodAttributes.HideBySig | System.Reflection.MethodAttributes.Public | System.Reflection.MethodAttributes.Static,
-                CallingConventions.Standard,
-                returnType, returnTypeModReq, returnTypeModOpt,
-                argTypes, argTypesModReq, argTypesModOpt
-            );
+            if (def.ReturnType.IsGenericParameter) {
+                mb.SetReturnType(typeParameters[def.ReturnType.Name]);
+            } else {
+                // Required because the return type modifiers aren't easily accessible via reflection.
+                _DMDEmit.ResolveWithModifiers(def.ReturnType, out Type returnType, out Type[] returnTypeModReq, out Type[] returnTypeModOpt);
+                mb.SetReturnType(returnType);
+            }
+
             ILGenerator il = mb.GetILGenerator();
 
             _DMDEmit.Generate(dmd, mb, il);

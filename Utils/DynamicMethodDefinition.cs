@@ -12,6 +12,7 @@ using System.ComponentModel;
 using System.Security;
 using System.Security.Permissions;
 using System.Diagnostics.SymbolStore;
+using Mono.Collections.Generic;
 using ExceptionHandler = Mono.Cecil.Cil.ExceptionHandler;
 
 namespace MonoMod.Utils {
@@ -61,6 +62,8 @@ namespace MonoMod.Utils {
         private ModuleDefinition _Module;
         public ModuleDefinition Module => _Module;
 
+        public List<string> TypeParameters { get; set; }
+
         public string Name;
 
         public Type OwnerType;
@@ -86,7 +89,13 @@ namespace MonoMod.Utils {
             Name = name;
             OriginalMethod = null;
 
-            _CreateDynModule(name, returnType, parameterTypes);
+            _CreateDynModule(name, returnType, new Type[0], parameterTypes);
+        }
+
+        public DynamicMethodDefinition(string name, Type returnType, Type[] genericTypes, Type[] parameterTypes):this() {
+            Name = name;
+            OriginalMethod = null;
+            _CreateDynModule(name, returnType, genericTypes, parameterTypes);
         }
 
         public ILProcessor GetILProcessor() {
@@ -97,7 +106,7 @@ namespace MonoMod.Utils {
             return new Cil.CecilILGenerator(Definition.Body.GetILProcessor()).GetProxy();
         }
 
-        private ModuleDefinition _CreateDynModule(string name, Type returnType, Type[] parameterTypes) {
+        private ModuleDefinition _CreateDynModule(string name, Type returnType, Type[] genericTypes, Type[] parameterTypes) {
             ModuleDefinition module = _Module = ModuleDefinition.CreateModule($"DMD:DynModule<{name}>?{GetHashCode()}", new ModuleParameters() {
                 Kind = ModuleKind.Dll,
 #if !CECIL0_9
@@ -115,10 +124,18 @@ namespace MonoMod.Utils {
             MethodDefinition def = _Definition = new MethodDefinition(
                 name,
                 Mono.Cecil.MethodAttributes.Public | Mono.Cecil.MethodAttributes.HideBySig | Mono.Cecil.MethodAttributes.Public | Mono.Cecil.MethodAttributes.Static,
-                returnType != null ? module.ImportReference(returnType) : module.TypeSystem.Void
+                returnType != null && !returnType.IsGenericParameter ? module.ImportReference(returnType) : Module.TypeSystem.Void
             );
+
+            foreach (var param in genericTypes) {
+                def.GenericParameters.Add(new GenericParameter(param.Name, def));
+            }
+
+            if (returnType != null && returnType.IsGenericParameter)
+                def.ReturnType = new GenericParameter(returnType.Name, def);
+
             foreach (Type paramType in parameterTypes)
-                def.Parameters.Add(new ParameterDefinition(module.ImportReference(paramType)));
+                def.Parameters.Add(new ParameterDefinition(paramType.IsGenericParameter ? new GenericParameter(paramType.Name, def) : module.ImportReference(paramType)));
             type.Methods.Add(def);
 
             return module;
@@ -152,7 +169,7 @@ namespace MonoMod.Utils {
                 for (int i = 0; i < args.Length; i++)
                     argTypes[i + offs] = args[i].ParameterType;
 
-                module = _CreateDynModule(orig.GetID(simple: true), (orig as MethodInfo)?.ReturnType, argTypes);
+                module = _CreateDynModule(orig.GetID(simple: true), (orig as MethodInfo)?.ReturnType, null, argTypes);
 
                 _CopyMethodToDefinition();
 
