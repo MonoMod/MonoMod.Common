@@ -282,7 +282,7 @@ namespace MonoMod.Utils {
                      * - ade
                      */
 
-                    int split = asmName.IndexOf(AssemblyHashNameTag);
+                    int split = asmName.IndexOf(AssemblyHashNameTag, StringComparison.Ordinal);
                     if (split != -1 && int.TryParse(asmName.Substring(split + 2), out int hash)) {
                         asms = AppDomain.CurrentDomain.GetAssemblies().Where(other => other.GetHashCode() == hash).ToArray();
                         if (asms.Length == 0)
