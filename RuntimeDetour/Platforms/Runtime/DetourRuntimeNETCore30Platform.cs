@@ -1,4 +1,5 @@
 ﻿using Mono.Cecil;
+using Mono.Cecil.Cil;
 using MonoMod.RuntimeDetour;
 using MonoMod.RuntimeDetour.Platforms;
 using MonoMod.Utils;
@@ -13,6 +14,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using MC = Mono.Cecil;
 using CIL = Mono.Cecil.Cil;
+using OpCodes = Mono.Cecil.Cil.OpCodes;
 
 namespace MonoMod.RuntimeDetour.Platforms {
 #if !MONOMOD_INTERNAL
@@ -256,12 +258,13 @@ namespace MonoMod.RuntimeDetour.Platforms {
                 using (DynamicMethodDefinition dmd = new DynamicMethodDefinition(
                         "MethodHandle_GetLoaderAllocator", typeof(object), new Type[] { typeof(IntPtr) }
                     )) {
-                    ILGenerator il = dmd.GetILGenerator();
+                    ILProcessor il = dmd.GetILProcessor();
+                    ModuleDefinition ctx = il.Body.Method.Module;
                     Type paramType = getLoaderAllocator.GetParameters().First().ParameterType;
                     il.Emit(OpCodes.Ldarga_S, 0);
-                    il.Emit(OpCodes.Call, Unsafe_As.MakeGenericMethod(typeof(IntPtr), paramType));
-                    il.Emit(OpCodes.Ldobj, paramType);
-                    il.Emit(OpCodes.Call, getLoaderAllocator);
+                    il.Emit(OpCodes.Call, ctx.ImportReference(Unsafe_As.MakeGenericMethod(typeof(IntPtr), paramType)));
+                    il.Emit(OpCodes.Ldobj, ctx.ImportReference(paramType));
+                    il.Emit(OpCodes.Call, ctx.ImportReference(getLoaderAllocator));
                     il.Emit(OpCodes.Ret);
 
                     invokeWrapper = dmd.Generate();
@@ -283,11 +286,12 @@ namespace MonoMod.RuntimeDetour.Platforms {
                 using (DynamicMethodDefinition dmd = new DynamicMethodDefinition(
                         "GetDeclaringTypeOfMethodHandle", typeof(Type), new Type[] { typeof(IntPtr) }
                     )) {
-                    ILGenerator il = dmd.GetILGenerator();
+                    ILProcessor il = dmd.GetILProcessor();
+                    ModuleDefinition ctx = il.Body.Method.Module;
                     il.Emit(OpCodes.Ldarga_S, 0);
-                    il.Emit(OpCodes.Call, Unsafe_As.MakeGenericMethod(typeof(IntPtr), methodHandleInternal));
-                    il.Emit(OpCodes.Ldobj, methodHandleInternal);
-                    il.Emit(OpCodes.Call, getDeclaringType);
+                    il.Emit(OpCodes.Call, ctx.ImportReference(Unsafe_As.MakeGenericMethod(typeof(IntPtr), methodHandleInternal)));
+                    il.Emit(OpCodes.Ldobj, ctx.ImportReference(methodHandleInternal));
+                    il.Emit(OpCodes.Call, ctx.ImportReference(getDeclaringType));
                     il.Emit(OpCodes.Ret);
 
                     invokeWrapper = dmd.Generate();
@@ -305,10 +309,11 @@ namespace MonoMod.RuntimeDetour.Platforms {
                 using (DynamicMethodDefinition dmd = new DynamicMethodDefinition(
                         "new RuntimeMethodInfoStub", runtimeMethodInfoStub, runtimeMethodInfoStubCtorArgs
                     )) {
-                    ILGenerator il = dmd.GetILGenerator();
+                    ILProcessor il = dmd.GetILProcessor();
+                    ModuleDefinition ctx = il.Body.Method.Module;
                     il.Emit(OpCodes.Ldarg_0);
                     il.Emit(OpCodes.Ldarg_1);
-                    il.Emit(OpCodes.Newobj, runtimeMethodInfoStubCtor);
+                    il.Emit(OpCodes.Newobj, ctx.ImportReference(runtimeMethodInfoStubCtor));
                     il.Emit(OpCodes.Ret);
 
                     runtimeMethodInfoStubCtorWrapper = dmd.Generate();
@@ -324,9 +329,10 @@ namespace MonoMod.RuntimeDetour.Platforms {
                 using (DynamicMethodDefinition dmd = new DynamicMethodDefinition(
                         "new RuntimeMethodHandle", typeof(RuntimeMethodHandle), new Type[] { typeof(object) }
                     )) {
-                    ILGenerator il = dmd.GetILGenerator();
+                    ILProcessor il = dmd.GetILProcessor();
+                    ModuleDefinition ctx = il.Body.Method.Module;
                     il.Emit(OpCodes.Ldarg_0);
-                    il.Emit(OpCodes.Newobj, ctor);
+                    il.Emit(OpCodes.Newobj, ctx.ImportReference(ctor));
                     il.Emit(OpCodes.Ret);
 
                     ctorWrapper = dmd.Generate();
