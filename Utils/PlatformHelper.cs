@@ -39,7 +39,7 @@ namespace MonoMod.Utils {
 #elif NETSTANDARD
             // RuntimeInformation.IsOSPlatform is lying: https://github.com/dotnet/corefx/issues/3032
             // Determine the platform based on the path.
-            string windir = Environment.GetEnvironmentVariable("windir");
+            string windir = Environment.GetEnvironmentVariable("WINDIR");
             if (!string.IsNullOrEmpty(windir) && windir.IndexOf(':', StringComparison.Ordinal) == 1 && windir[0] != '/' && windir[0] != '\\' && Directory.Exists(windir)) {
                 _current = Platform.Windows;
 
