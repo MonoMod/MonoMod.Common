@@ -14,7 +14,29 @@ namespace MonoMod.Utils {
         private static void DeterminePlatform() {
             _current = Platform.Unknown;
 
-#if NETSTANDARD
+#if NET5_0_OR_GREATER
+            if (OperatingSystem.IsWindows()) {
+                _current = Platform.Windows;
+
+            } else if (OperatingSystem.IsAndroid()) {
+                _current = Platform.Android;
+
+            } else if (OperatingSystem.IsLinux()) {
+                _current = Platform.Linux;
+
+            } else if (OperatingSystem.IsIOS() || OperatingSystem.IsTvOS()) {
+                _current = Platform.iOS;
+
+            } else if (OperatingSystem.IsMacOS()) {
+                _current = Platform.MacOS;
+
+            } else if (OperatingSystem.IsFreeBSD() || File.Exists("/proc/sys/kernel/ostype")) {
+                // Not every unix has got a procfs.
+                _current = Platform.Unix;
+
+            }
+
+#elif NETSTANDARD
             // RuntimeInformation.IsOSPlatform is lying: https://github.com/dotnet/corefx/issues/3032
             // Determine the platform based on the path.
             string windir = Environment.GetEnvironmentVariable("windir");
