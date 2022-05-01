@@ -261,7 +261,7 @@ namespace MonoMod.RuntimeDetour.Platforms {
                     ILProcessor il = dmd.GetILProcessor();
                     ModuleDefinition ctx = il.Body.Method.Module;
                     Type paramType = getLoaderAllocator.GetParameters().First().ParameterType;
-                    il.Emit(OpCodes.Ldarga_S, 0);
+                    il.Emit(OpCodes.Ldarga_S, il.Body.Method.Parameters[0]);
                     il.Emit(OpCodes.Call, ctx.ImportReference(Unsafe_As.MakeGenericMethod(typeof(IntPtr), paramType)));
                     il.Emit(OpCodes.Ldobj, ctx.ImportReference(paramType));
                     il.Emit(OpCodes.Call, ctx.ImportReference(getLoaderAllocator));
@@ -288,7 +288,7 @@ namespace MonoMod.RuntimeDetour.Platforms {
                     )) {
                     ILProcessor il = dmd.GetILProcessor();
                     ModuleDefinition ctx = il.Body.Method.Module;
-                    il.Emit(OpCodes.Ldarga_S, 0);
+                    il.Emit(OpCodes.Ldarga_S, il.Body.Method.Parameters[0]);
                     il.Emit(OpCodes.Call, ctx.ImportReference(Unsafe_As.MakeGenericMethod(typeof(IntPtr), methodHandleInternal)));
                     il.Emit(OpCodes.Ldobj, ctx.ImportReference(methodHandleInternal));
                     il.Emit(OpCodes.Call, ctx.ImportReference(getDeclaringType));
