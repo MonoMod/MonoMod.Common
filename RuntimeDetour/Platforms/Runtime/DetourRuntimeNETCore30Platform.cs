@@ -24,20 +24,84 @@ namespace MonoMod.RuntimeDetour.Platforms {
         // The JitVersionGuid is the same for Core 3.0 and 3.1
         public static readonly Guid JitVersionGuid = new Guid("d609bed1-7831-49fc-bd49-b6f054dd4d46");
 
+        public bool UseOldGetFunctionPointer = Environment.GetEnvironmentVariable("MONOMOD_RUNTIMEDETOUR_NETCORE30PLUS_OLDFTNPTR") == "1";
+
         protected override unsafe void DisableInlining(MethodBase method, RuntimeMethodHandle handle) {
             // https://github.com/dotnet/runtime/blob/89965be3ad2be404dc82bd9e688d5dd2a04bcb5f/src/coreclr/src/vm/method.hpp#L178
-            // mdcNotInline = 0x2000
             // References to RuntimeMethodHandle (CORINFO_METHOD_HANDLE) pointing to MethodDesc
             // can be traced as far back as https://ntcore.com/files/netint_injection.htm
 
-            const int offset =
+            const int m_bFlags2_offset =
                 2 // UINT16 m_wFlags3AndTokenRemainder
               + 1 // BYTE m_chunkIndex
+              ;
+            byte* m_bFlags2 = ((byte*) handle.Value) + m_bFlags2_offset;
+            // DON'T SET enum_flag2_HasStableEntryPoint, unless you want the JIT to loop between ThePreStub and PrecodeFixupThunk.
+            // *m_bFlags2 &= unchecked((byte) ~0x20U); // enum_flag2_IsEligibleForTieredCompilation
+
+            const int m_wFlags_offset =
+                2 // UINT16 m_wFlags3AndTokenRemainder
               + 1 // BYTE m_chunkIndex
+              + 1 // BYTE m_bFlags2
               + 2 // WORD m_wSlotNumber
               ;
-            ushort* m_wFlags = (ushort*) (((byte*) handle.Value) + offset);
-            *m_wFlags |= 0x2000;
+            ushort* m_wFlags = (ushort*) (((byte*) handle.Value) + m_wFlags_offset);
+            *m_wFlags |= 0x2000; // mdcNotInline
+        }
+
+        protected override unsafe IntPtr GetFunctionPointer(MethodBase method, RuntimeMethodHandle handle) {
+            // This probably applies to some older runtimes too, might even change on a per platform basis, is still fresh,
+            // might not work with AOT'd stuff and Wine, but at least it gets us past all the relevant stubs.
+            if (UseOldGetFunctionPointer)
+                return base.GetFunctionPointer(method, handle);
+
+            // TODO: RuntimeDetouring generics is pain.
+            for (Type type = method.DeclaringType; type != null; type = type.DeclaringType)
+                if (type.IsGenericType)
+                    return base.GetFunctionPointer(method, handle);
+
+            if (method.IsVirtual && (method.DeclaringType?.IsValueType ?? false)) {
+                /* .NET has got TWO MethodDescs and thus TWO ENTRY POINTS for virtual struct methods (f.e. override ToString).
+                 * More info: https://mattwarren.org/2017/08/02/A-look-at-the-internals-of-boxing-in-the-CLR/#unboxing-stub-creation
+                 * See DetourRuntimeNETPlatform for a list of observations.
+                 */
+                bool interfaced = false;
+                foreach (Type intf in method.DeclaringType.GetInterfaces()) {
+                    if (method.DeclaringType.GetInterfaceMap(intf).TargetMethods.Contains(method)) {
+                        interfaced = true;
+                        break;
+                    }
+                }
+
+                if (!interfaced)
+                    return method.GetLdftnPointer();
+
+                // TODO: Figure out how to best obtain the real location of interface method code.
+                return base.GetFunctionPointer(method, handle);
+            }
+
+            if (method.IsDynamicMethod()) {
+                // standard fields (8) | ???? (ptr) | ???? (8) | ???? (ptr) | ???? (ptr) | ???? (ptr) | real ptr
+                // Possibly related to how dynamic methods have both a mutable and a non-mutable counterpart?
+                return *(IntPtr*) ((long) handle.Value + 8 + IntPtr.Size + 8 + IntPtr.Size + IntPtr.Size + IntPtr.Size);
+            }
+
+            const int m_wFlags_offset =
+                2 // UINT16 m_wFlags3AndTokenRemainder
+              + 1 // BYTE m_chunkIndex
+              + 1 // BYTE m_bFlags2
+              + 2 // WORD m_wSlotNumber
+              ;
+            ushort* m_wFlags = (ushort*) (((byte*) handle.Value) + m_wFlags_offset);
+
+            // Check for mdcHasNonVtableSlot
+            if ((*m_wFlags & 0x0008) == 0x0008) {
+                // standard fields (8) | ???? (ptr) | real ptr
+                return *(IntPtr*) ((long) handle.Value + 8 + IntPtr.Size);
+            }
+
+            // standard fields (8) | real ptr
+            return *(IntPtr*) ((long) handle.Value + 8);
         }
 
         private IntPtr GetCompileMethod(IntPtr jit)

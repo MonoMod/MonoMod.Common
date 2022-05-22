@@ -56,15 +56,16 @@ namespace MonoMod {
             }
 
             if (string.IsNullOrEmpty(path))
-                path = "mmdbglog.txt";
-            path = Path.GetFullPath($"{Path.GetFileNameWithoutExtension(path)}-{Tag}{Path.GetExtension(path)}");
+                path = Path.Combine(Environment.CurrentDirectory, "mmdbglog.txt");
+            path = Path.GetFullPath(path);
+            string dir = Path.GetDirectoryName(path);
+            path = Path.Combine(dir, $"{Path.GetFileNameWithoutExtension(path)}-{Tag}{Path.GetExtension(path)}");
 
             try {
                 if (File.Exists(path))
                     File.Delete(path);
             } catch { }
             try {
-                string dir = Path.GetDirectoryName(path);
                 if (!Directory.Exists(dir))
                     Directory.CreateDirectory(dir);
                 Writer = new StreamWriter(new FileStream(path, FileMode.OpenOrCreate, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete), Encoding.UTF8);

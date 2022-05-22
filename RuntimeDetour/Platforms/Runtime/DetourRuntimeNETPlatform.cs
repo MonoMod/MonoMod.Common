@@ -1,6 +1,6 @@
 ﻿// These should be defined as part of your build process,
 // but if you want to test them quickly...
-// #define MONOMOD_RUNTIMEDETOUR_NET_SCAN_MANUAL
+#define MONOMOD_RUNTIMEDETOUR_NET_SCAN_MANUAL
 // #define MONOMOD_RUNTIMEDETOUR_NET_SCAN_AUTO
 // Default to automatic only.
 #if !MONOMOD_RUNTIMEDETOUR_NET_SCAN_MANUAL && !MONOMOD_RUNTIMEDETOUR_NET_SCAN_AUTO
