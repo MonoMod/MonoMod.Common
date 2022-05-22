@@ -45,6 +45,8 @@ namespace MonoMod.Utils {
             .GetType("System.RuntimeType+RuntimeTypeCache")
             ?.GetMethod("GetPropertyList", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
 
+        private static Dictionary<Type, FieldInfo> fmap_CerArrayList_array = new Dictionary<Type, FieldInfo>();
+
 #if !NETFRAMEWORK3
         private static readonly ConditionalWeakTable<Type, CacheFixEntry> _CacheFixed = new ConditionalWeakTable<Type, CacheFixEntry>();
 #else
@@ -172,18 +174,44 @@ namespace MonoMod.Utils {
         private static Array _GetArray(object cache, MethodInfo getter) {
             // Get and discard once, otherwise we might not be getting the actual backing array.
             getter.Invoke(cache, _CacheGetterArgs);
-            return (Array) getter.Invoke(cache, _CacheGetterArgs);
+
+            object arrayRaw = getter.Invoke(cache, _CacheGetterArgs);
+            if (arrayRaw is Array array)
+                return array;
+
+            // .NET Framework 3.5 is weird.
+            Type arrayType = arrayRaw.GetType();
+            if (arrayType.IsGenericType && !arrayType.IsGenericTypeDefinition) {
+                Type arrayTypeGeneric = arrayType.GetGenericTypeDefinition();
+
+                if (arrayTypeGeneric.FullName == "System.Reflection.CerArrayList`1") {
+                    if (!fmap_CerArrayList_array.TryGetValue(arrayType, out FieldInfo f_CerArrayList_array))
+                        fmap_CerArrayList_array[arrayType] = f_CerArrayList_array = arrayType.GetField("m_array", BindingFlags.NonPublic | BindingFlags.Instance);
+                    return (Array) f_CerArrayList_array.GetValue(arrayRaw);
+                }
+            }
+
+            throw new NotSupportedException($"Unsupported reflection cache array type: {arrayRaw?.GetType().FullName ?? "null"}");
         }
 
         private static void _FixReflectionCacheOrder<T>(Array orig) where T : MemberInfo {
             // Sort using a short-lived list.
             List<T> list = new List<T>(orig.Length);
-            for (int i = 0; i < orig.Length; i++)
-                list.Add((T) orig.GetValue(i));
+
+            for (int i = 0; i < orig.Length; i++) {
+                object value = orig.GetValue(i);
+
+                if (value == null) {
+                    // .NET Framework 3.5 arrays come from a list which may contain extra headroom.
+                    break;
+                }
+
+                list.Add((T) value);
+            }
 
             list.Sort((a, b) => a.MetadataToken - b.MetadataToken);
 
-            for (int i = orig.Length - 1; i >= 0; --i)
+            for (int i = list.Count - 1; i >= 0; --i)
                 orig.SetValue(list[i], i);
         }
 
