@@ -27,13 +27,10 @@ namespace MonoMod.Utils {
             .GetType("System.RuntimeType");
 
         private static Type t_RuntimeTypeCache =
-            t_RuntimeType.GetNestedType("RuntimeTypeCache", BindingFlags.Public | BindingFlags.NonPublic);
+            t_RuntimeType?.GetNestedType("RuntimeTypeCache", BindingFlags.Public | BindingFlags.NonPublic);
 
         private static PropertyInfo p_RuntimeType_Cache =
-            t_RuntimeTypeCache == null ? null :
-            typeof(Type).Assembly
-            .GetType("System.RuntimeType")
-            ?.GetProperty("Cache", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, null, t_RuntimeTypeCache, Type.EmptyTypes, null);
+            t_RuntimeTypeCache?.GetProperty("Cache", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, null, t_RuntimeTypeCache, Type.EmptyTypes, null);
 
         private static MethodInfo m_RuntimeTypeCache_GetFieldList =
             typeof(Type).Assembly
