@@ -41,7 +41,9 @@ namespace MonoMod.RuntimeDetour.Platforms {
             typeof(RuntimeMethodHandle).Assembly.GetType("System.IRuntimeMethodInfo")?.GetMethod("get_Value");
 
         private static readonly MethodInfo _RuntimeHelpers__CompileMethod =
-            typeof(RuntimeHelpers).GetMethod("_CompileMethod", BindingFlags.NonPublic | BindingFlags.Static);
+            typeof(RuntimeHelpers).GetMethod("_CompileMethod", BindingFlags.NonPublic | BindingFlags.Static) ??
+            // System.Private.CoreLib 6.0.0.0
+            typeof(RuntimeHelpers).GetMethod("CompileMethod", BindingFlags.NonPublic | BindingFlags.Static);
         private static readonly bool _RuntimeHelpers__CompileMethod_TakesIntPtr =
             _RuntimeHelpers__CompileMethod?.GetParameters()[0].ParameterType.FullName == "System.IntPtr";
         private static readonly bool _RuntimeHelpers__CompileMethod_TakesIRuntimeMethodInfo =
