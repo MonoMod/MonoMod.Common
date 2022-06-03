@@ -101,6 +101,7 @@ namespace MonoMod.RuntimeDetour.Platforms {
             MMDbgLog.Log($"getf: 0x{(long) handle.GetFunctionPointer():X16}");
 
             bool regenerated = false;
+            bool wasPreStub;
 
             ReloadFuncPtr:
 
@@ -167,7 +168,7 @@ namespace MonoMod.RuntimeDetour.Platforms {
                             *(uint*) (lptr + 0x08) == 0xd61f0140    // br x10
                         ) {
                             IntPtr next = *(IntPtr*) (lptr + 0x10);
-                            return NotThePreStub(curr, next);
+                            return NotThePreStub(curr, next, out wasPreStub);
                         } else if (
                             // NDirectImportPrecode
                             // https://github.com/dotnet/runtime/blob/7830fddeead7907f6dd45f814fc3b8d49cd4b082/src/coreclr/vm/arm64/cgencpu.h#L628-L633
@@ -176,7 +177,7 @@ namespace MonoMod.RuntimeDetour.Platforms {
                             *(uint*) (lptr + 0x08) == 0xd61f0140    // br x10
                         ) {
                             IntPtr next = *(IntPtr*) (lptr + 0x10);
-                            return NotThePreStub(curr, next);
+                            return NotThePreStub(curr, next, out wasPreStub);
                         } else if (
                             // FixupPrecode
                             // https://github.com/dotnet/runtime/blob/7830fddeead7907f6dd45f814fc3b8d49cd4b082/src/coreclr/vm/arm64/cgencpu.h#L666-L672
@@ -185,7 +186,7 @@ namespace MonoMod.RuntimeDetour.Platforms {
                             *(uint*) (lptr + 0x08) == 0xd61f0160    // br x11
                         ) {
                             IntPtr next = *(IntPtr*) (lptr + 0x10);
-                            return NotThePreStub(curr, next);
+                            return NotThePreStub(curr, next, out wasPreStub);
                         } else if (
                             // ThisPtrRetBufPrecode
                             // https://github.com/dotnet/runtime/blob/4da6b9a8d55913c0ea560d63590d35dc942425be/src/coreclr/vm/arm64/stubs.cpp#L641-L647
@@ -196,7 +197,7 @@ namespace MonoMod.RuntimeDetour.Platforms {
                             *(uint*) (lptr + 0x10) == 0xd61f0200    // br x16
                         ) {
                             IntPtr next = *(IntPtr*) (lptr + 0x18);
-                            return NotThePreStub(curr, next);
+                            return NotThePreStub(curr, next, out wasPreStub);
                         }
 
                         return curr;
@@ -204,12 +205,22 @@ namespace MonoMod.RuntimeDetour.Platforms {
 
                     int numIterations = 0;
 
+                    wasPreStub = false;
                     IntPtr nextPtr = WalkPrecode(ptr);
+                    if (wasPreStub) {
+                        PrepareMethod(method, handle);
+                        goto ReloadFuncPtr;
+                    }
                     while (nextPtr != ptr && numIterations < 16) {
                         numIterations++;
                         ptr = nextPtr;
 
+                        wasPreStub = false;
                         nextPtr = WalkPrecode(ptr);
+                        if (wasPreStub) {
+                            PrepareMethod(method, handle);
+                            goto ReloadFuncPtr;
+                        }
                     }
                 }
             } else if (IntPtr.Size == 4) {
@@ -225,7 +236,11 @@ namespace MonoMod.RuntimeDetour.Platforms {
                     int from = iptr + 0x0b;
                     int delta = *(int*) (from + 1);
                     int to = delta + (from + 1 + sizeof(int));
-                    ptr = NotThePreStub(ptr, (IntPtr) to);
+                    ptr = NotThePreStub(ptr, (IntPtr) to, out wasPreStub);
+                    if (wasPreStub) {
+                        PrepareMethod(method, handle);
+                        goto ReloadFuncPtr;
+                    }
                     MMDbgLog.Log($"ngen: 0x{(long) ptr:X8}");
                 }
 
@@ -239,7 +254,11 @@ namespace MonoMod.RuntimeDetour.Platforms {
                     int from = iptr;
                     int delta = *(int*) (from + 1);
                     int to = delta + (from + 1 + sizeof(int));
-                    ptr = NotThePreStub(ptr, (IntPtr) to);
+                    ptr = NotThePreStub(ptr, (IntPtr) to, out wasPreStub);
+                    if (wasPreStub) {
+                        PrepareMethod(method, handle);
+                        goto ReloadFuncPtr;
+                    }
                     MMDbgLog.Log($"ngen: 0x{(int) ptr:X8}");
                 }
 
@@ -251,7 +270,11 @@ namespace MonoMod.RuntimeDetour.Platforms {
                     *(uint*) (lptr + 0x12) == 0x74___c2_3b_49 && // in reverse order: cmp rax, r10 | je ...
                     *(ushort*) (lptr + 0x17) == 0xb8_48 // in reverse order: mov {TARGET}
                 ) {
-                    ptr = NotThePreStub(ptr, (IntPtr) (*(ulong*) (lptr + 0x19)));
+                    ptr = NotThePreStub(ptr, (IntPtr) (*(ulong*) (lptr + 0x19)), out wasPreStub);
+                    if (wasPreStub) {
+                        PrepareMethod(method, handle);
+                        goto ReloadFuncPtr;
+                    }
                     MMDbgLog.Log($"ngen: 0x{(long) ptr:X16}");
                     return ptr;
                 }
@@ -285,7 +308,11 @@ namespace MonoMod.RuntimeDetour.Platforms {
                     long from = lptr;
                     int delta = *(int*) (from + 1);
                     long to = delta + (from + 1 + sizeof(int));
-                    ptr = NotThePreStub(ptr, (IntPtr) to);
+                    ptr = NotThePreStub(ptr, (IntPtr) to, out wasPreStub);
+                    if (wasPreStub) {
+                        PrepareMethod(method, handle);
+                        goto ReloadFuncPtr;
+                    }
 #if MONOMOD_RUNTIMEDETOUR_NET_SCAN_MANUAL
                     // This ain't enough though! Turns out if we stop here, ptr is in a region that can be free'd,
                     // while the *actual actual* method body can still remain in memory. What even is this limbo?
@@ -300,8 +327,13 @@ namespace MonoMod.RuntimeDetour.Platforms {
                         to = delta + (from + 0x0D + 2 + sizeof(int));
                         // Noticed this by sheer luck. Maybe a link to the coreclr source would be neat in the future tho.
                         if ((*(long*) ((long) handle.Value + 0x10)) == to ||
-                            (*(long*) ((long) handle.Value + 0x18)) == to)
-                            ptr = NotThePreStub(ptr, (IntPtr) to);
+                            (*(long*) ((long) handle.Value + 0x18)) == to) {
+                            ptr = NotThePreStub(ptr, (IntPtr) to, out wasPreStub);
+                            if (wasPreStub) {
+                                PrepareMethod(method, handle);
+                                goto ReloadFuncPtr;
+                            }
+                        }
                     }
                     // Generics are pain.
                     if (*(byte*) (lptr + 0x01)      == 0xb8 &&      // movabs {last arg + 1}, {generic type handle}
@@ -312,8 +344,13 @@ namespace MonoMod.RuntimeDetour.Platforms {
                         long typeHandle = *(long*) (from + 0x00 + 2);
                         to = *(long*) (from + 0x0A + 2);
                         // Yet another coincidence to add to the "find in coreclr src please" list.
-                        if (method.DeclaringType.TypeHandle.Value == (IntPtr) typeHandle)
-                            ptr = NotThePreStub(ptr, (IntPtr) to);
+                        if (method.DeclaringType.TypeHandle.Value == (IntPtr) typeHandle) {
+                            ptr = NotThePreStub(ptr, (IntPtr) to, out wasPreStub);
+                            if (wasPreStub) {
+                                PrepareMethod(method, handle);
+                                goto ReloadFuncPtr;
+                            }
+                        }
                     }
 #endif
 #if MONOMOD_RUNTIMEDETOUR_NET_SCAN_AUTO
@@ -324,7 +361,11 @@ namespace MonoMod.RuntimeDetour.Platforms {
                             *(ushort*) (lptr + 0x0A)    == 0xe0_ff      // jmp rax
                         ) {
                             to = *(long*) (lptr + 0x02);
-                            ptr = NotThePreStub(ptr, (IntPtr) to);
+                            ptr = NotThePreStub(ptr, (IntPtr) to, out wasPreStub);
+                            if (wasPreStub) {
+                                PrepareMethod(method, handle);
+                                goto ReloadFuncPtr;
+                            }
                             scan = -1;
                             continue;
                         }
@@ -336,7 +377,11 @@ namespace MonoMod.RuntimeDetour.Platforms {
                             from = lptr;
                             delta = *(int*) (from + 0x0D + 2);
                             to = delta + (from + 0x0D + 2 + sizeof(int));
-                            ptr = NotThePreStub(ptr, (IntPtr) to);
+                            ptr = NotThePreStub(ptr, (IntPtr) to, out wasPreStub);
+                            if (wasPreStub) {
+                                PrepareMethod(method, handle);
+                                goto ReloadFuncPtr;
+                            }
                             scan = -1;
                             continue;
                         }
@@ -353,7 +398,11 @@ namespace MonoMod.RuntimeDetour.Platforms {
                         *(ushort*) (lptr + 0x0A) == 0xe0_ff // jmp rax
                     ) {
                         to = *(long*) (lptr + 0x02);
-                        ptr = NotThePreStub(ptr, (IntPtr) to);
+                        ptr = NotThePreStub(ptr, (IntPtr) to, out wasPreStub);
+                        if (wasPreStub) {
+                            PrepareMethod(method, handle);
+                            goto ReloadFuncPtr;
+                        }
                     }
 #endif
                     MMDbgLog.Log($"ngen: 0x{(long) ptr:X16}");
@@ -384,7 +433,7 @@ namespace MonoMod.RuntimeDetour.Platforms {
         public override event OnMethodCompiledEvent OnMethodCompiled;
 #pragma warning restore CS0067
 
-        private IntPtr NotThePreStub(IntPtr ptrGot, IntPtr ptrParsed) {
+        private IntPtr NotThePreStub(IntPtr ptrGot, IntPtr ptrParsed, out bool wasPreStub) {
             if (ThePreStub == IntPtr.Zero) {
                 ThePreStub = (IntPtr) (-2);
 
@@ -404,7 +453,9 @@ namespace MonoMod.RuntimeDetour.Platforms {
                 }
             }
 
-            return (ptrParsed == ThePreStub /*|| ThePreStub == (IntPtr) (-1)*/) ? ptrGot : ptrParsed;
+            wasPreStub = ptrParsed == ThePreStub /*|| ThePreStub == (IntPtr) (-1)*/;
+
+            return wasPreStub ? ptrGot : ptrParsed;
         }
     }
 }
