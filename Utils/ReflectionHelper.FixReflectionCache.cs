@@ -30,17 +30,14 @@ namespace MonoMod.Utils {
             t_RuntimeType?.GetNestedType("RuntimeTypeCache", BindingFlags.Public | BindingFlags.NonPublic);
 
         private static PropertyInfo p_RuntimeType_Cache =
-            t_RuntimeTypeCache?.GetProperty("Cache", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, null, t_RuntimeTypeCache, Type.EmptyTypes, null);
+            t_RuntimeTypeCache == null ? null :
+            t_RuntimeType?.GetProperty("Cache", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, null, t_RuntimeTypeCache, Type.EmptyTypes, null);
 
         private static MethodInfo m_RuntimeTypeCache_GetFieldList =
-            typeof(Type).Assembly
-            .GetType("System.RuntimeType+RuntimeTypeCache")
-            ?.GetMethod("GetFieldList", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            t_RuntimeTypeCache?.GetMethod("GetFieldList", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
 
         private static MethodInfo m_RuntimeTypeCache_GetPropertyList =
-            typeof(Type).Assembly
-            .GetType("System.RuntimeType+RuntimeTypeCache")
-            ?.GetMethod("GetPropertyList", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            t_RuntimeTypeCache?.GetMethod("GetPropertyList", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
 
         private static Dictionary<Type, FieldInfo> fmap_CerArrayList_array = new Dictionary<Type, FieldInfo>();
 
