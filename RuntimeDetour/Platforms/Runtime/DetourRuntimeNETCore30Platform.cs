@@ -246,6 +246,9 @@ namespace MonoMod.RuntimeDetour.Platforms {
 
         protected virtual void SetupJitHookHelpers() {
             Type Unsafe = typeof(object).Assembly.GetType("Internal.Runtime.CompilerServices.Unsafe");
+            if (Unsafe == null) {
+                Unsafe = typeof(object).Assembly.GetType("System.Runtime.CompilerServices.Unsafe");
+            }
             MethodInfo Unsafe_As = Unsafe.GetMethods().First(m => m.Name == "As" && m.ReturnType.IsByRef);
 
             const BindingFlags StaticNonPublic = BindingFlags.Static | BindingFlags.NonPublic;
@@ -393,7 +396,7 @@ namespace MonoMod.RuntimeDetour.Platforms {
             return _getTypeFromHandleUnsafeMethod = assembly.GetType("System.Type").GetMethod(MethodName);
         }
 
-        private static FieldInfo _runtimeAssemblyPtrField = Type.GetType("System.Reflection.RuntimeAssembly").GetField("m_assembly", BindingFlags.Instance | BindingFlags.NonPublic);
+        protected static FieldInfo _runtimeAssemblyPtrField = Type.GetType("System.Reflection.RuntimeAssembly").GetField("m_assembly", BindingFlags.Instance | BindingFlags.NonPublic);
         protected virtual unsafe void MakeAssemblySystemAssembly(Assembly assembly) {
 
             // RuntimeAssembly.m_assembly is a DomainAssembly*,
