@@ -42,11 +42,11 @@ namespace MonoMod.RuntimeDetour.Platforms {
                 // PEAssembly
                 IntPtr.Size + // PTR_PEImage              m_PEImage;
                 sizeof(int) + // BOOL                     m_MDImportIsRW_Debugger_Use_Only; // i'm pretty sure that these bools are sizeof(int)
-                                                                                            // but they might not be, and it might vary (that would be a pain in the ass)
+                (PlatformHelper.Is(Platform.Bits64) ? sizeof(int) : 0) + // padding for x64 // but they might not be, and it might vary (that would be a pain in the ass)
                 IntPtr.Size + // IMDInternalImport       *m_pMDImport or m_pMDImport_UseAccessor, not really sure
                 IntPtr.Size + // IMetaDataImport2        *m_pImporter;
                 IntPtr.Size + // IMetaDataEmit           *m_pEmitter;
-                sizeof(long) + // Volatile<LONG>           m_refCount; // fuck C long
+                sizeof(int) + // Volatile<LONG>           m_refCount; // fuck C long
                 + 0;          // bool                     m_isSystem
 
             int* flags = (int*) (((byte*) peAssembly) + peAssemOffset);
