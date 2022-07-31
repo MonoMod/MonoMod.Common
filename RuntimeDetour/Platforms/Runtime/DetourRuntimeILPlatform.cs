@@ -326,6 +326,11 @@ namespace MonoMod.RuntimeDetour.Platforms {
             }
         }
 
+        private static bool IsStruct(Type t) {
+            if (t == null) return false;
+            return t.IsValueType && !t.IsPrimitive && !t.IsEnum;
+        }
+
         public MethodBase GetDetourTarget(MethodBase from, MethodBase to) {
             to = GetIdentifiable(to);
 
@@ -335,9 +340,9 @@ namespace MonoMod.RuntimeDetour.Platforms {
             if (from is MethodInfo fromInfo && !from.IsStatic &&
                 to is MethodInfo toInfo && to.IsStatic &&
                 fromInfo.ReturnType == toInfo.ReturnType &&
-                fromInfo.ReturnType.IsValueType &&
+                IsStruct(fromInfo.ReturnType) &&
                 (glueThiscallStructRetPtr =
-                    from.DeclaringType?.IsValueType ?? false && from.GetParameters().Length == 0 ? GlueThiscallInStructRetPtr :
+                    IsStruct(from.DeclaringType) && from.GetParameters().Length == 0 ? GlueThiscallInStructRetPtr :
                     GlueThiscallStructRetPtr
                 ) != GlueThiscallStructRetPtrOrder.Original) {
 
