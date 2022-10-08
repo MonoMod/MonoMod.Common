@@ -179,6 +179,8 @@ namespace MonoMod.RuntimeDetour.Platforms {
             out byte* nativeEntry, 
             out uint nativeSizeOfCode) {
 
+            int _lastError = Marshal.GetLastPInvokeError();
+
             nativeEntry = null;
             nativeSizeOfCode = 0;
 
@@ -223,6 +225,8 @@ namespace MonoMod.RuntimeDetour.Platforms {
                     }
                 }
 
+                Marshal.SetLastPInvokeError(_lastError);
+                
                 return result;
             } finally {
                 hookEntrancy--;
