@@ -82,8 +82,8 @@ namespace MonoMod.RuntimeDetour.Platforms {
                 using (DynamicMethodDefinition copy = new DynamicMethodDefinition(_MemAllocScratchDummy)) {
                     copy.Name = $"MemAllocScratch<Reference>";
                     scratch = DMDEmitDynamicMethodGenerator.Generate(copy);
+                    Pin(scratch);
                 }
-                Pin(scratch);
                 ReferenceDynamicPoolPtr = GetNativeStart(scratch);
             }
         }
