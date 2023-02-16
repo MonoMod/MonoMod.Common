@@ -173,8 +173,48 @@ namespace MonoMod.RuntimeDetour.Platforms {
 
         #endregion
 
+#if UNITY_5_3_OR_NEWER //source https://github.com/Misaka-Mikoto-Tech/MonoHook
+        [StructLayout(LayoutKind.Sequential, Pack = 1)] // 好像在 IL2CPP 里无效
+        private struct __ForCopy
+        {
+            public long         __dummy;
+            public MethodBase   method;
+        }
+        protected virtual unsafe IntPtr GetFunctionPointer(MethodBase method,RuntimeMethodHandle handle)
+        {
+            // if (!LDasm.IsIL2CPP())
+            //     return method.MethodHandle.GetFunctionPointer();
+            // else
+            __ForCopy __forCopy = new __ForCopy() {method = method};
+
+            long* ptr = &__forCopy.__dummy;
+            ptr++; // addr of _forCopy.method
+
+            IntPtr methodAddr = IntPtr.Zero;
+            if (sizeof(IntPtr) == 8)
+            {
+                long methodDataAddr = *(long*) ptr;
+                byte* ptrData = (byte*) methodDataAddr + sizeof(IntPtr) * 2; // offset of Il2CppReflectionMethod::const MethodInfo *method;
+
+                long methodPtr = 0;
+                methodPtr = *(long*) ptrData;
+                methodAddr = new IntPtr(*(long*) methodPtr); // MethodInfo::Il2CppMethodPointer methodPointer;
+            }
+            else
+            {
+                int methodDataAddr = *(int*) ptr;
+                byte* ptrData = (byte*) methodDataAddr + sizeof(IntPtr) * 2; // offset of Il2CppReflectionMethod::const MethodInfo *method;
+
+                int methodPtr = 0;
+                methodPtr = *(int*) ptrData;
+                methodAddr = new IntPtr(*(int*) methodPtr);
+            }
+            return methodAddr;
+        }
+#else
         protected virtual IntPtr GetFunctionPointer(MethodBase method, RuntimeMethodHandle handle)
             => handle.GetFunctionPointer();
+#endif
 
         protected virtual void PrepareMethod(MethodBase method, RuntimeMethodHandle handle)
             => RuntimeHelpers.PrepareMethod(handle);
