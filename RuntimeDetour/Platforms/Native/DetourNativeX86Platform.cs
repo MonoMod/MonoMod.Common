@@ -57,8 +57,9 @@ namespace MonoMod.RuntimeDetour.Platforms {
                 Method = from,
                 Target = to
             };
-            detour.Size = DetourSizes[detour.Type = type ?? (byte) GetDetourType(from, to, ref detour.Extra)];
-            // Console.WriteLine($"{nameof(DetourNativeX86Platform)} create: {(DetourType) detour.Type} 0x{detour.Method.ToString("X16")} + 0x{detour.Size.ToString("X8")} -> 0x{detour.Target.ToString("X16")}");
+            detour.Type = type ?? (byte) GetDetourType(from, to, ref detour.Extra);
+            // MMDbgLog.Log($"{nameof(DetourNativeX86Platform)} create: {(DetourType) detour.Type} (override: {(type is byte ? ((DetourType) type.Value).ToString() : "<null>")}) 0x{detour.Method.ToString("X16")} -> 0x{detour.Target.ToString("X16")}");
+            detour.Size = DetourSizes[detour.Type];
             return detour;
         }
 
