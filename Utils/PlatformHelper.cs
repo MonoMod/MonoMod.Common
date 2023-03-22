@@ -112,8 +112,12 @@ namespace MonoMod.Utils {
                 _current |= (IntPtr.Size >= 8 ? Platform.Bits64 : 0);
 
 #if NETSTANDARD
+            /* Detect LoongArch64, Architecture.LoongArch64 may not be recognized by other platform.
+             * And I found RuntimeInformation.ProcessArchitecture.HasFlag(Architecture.Arm) returns True on LoongArch64. */
+            if("LoongArch64" == RuntimeInformation.ProcessArchitecture.ToString())
+                _current |= Platform.LoongArch64;
             // Detect ARM based on RuntimeInformation.
-            if (RuntimeInformation.ProcessArchitecture.HasFlag(Architecture.Arm) ||
+            else if (RuntimeInformation.ProcessArchitecture.HasFlag(Architecture.Arm) ||
                 RuntimeInformation.OSArchitecture.HasFlag(Architecture.Arm))
                 _current |= Platform.ARM;
 #else
