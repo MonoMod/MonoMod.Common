@@ -36,6 +36,11 @@ namespace MonoMod.Utils {
         Wine = 1 << 17,
 
         /// <summary>
+        /// On demand LoongArch64 platform bit.
+        /// </summary>
+        LoongArch64 = 1 << 18,
+
+        /// <summary>
         /// Unknown OS.
         /// </summary>
         Unknown = OS | (1 << 4),

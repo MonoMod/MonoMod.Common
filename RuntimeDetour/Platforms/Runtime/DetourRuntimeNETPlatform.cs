@@ -223,6 +223,66 @@ namespace MonoMod.RuntimeDetour.Platforms {
                         }
                     }
                 }
+            } else if (PlatformHelper.Is(Platform.LoongArch64)) {
+                IntPtr WalkPrecode(IntPtr curr) {
+                    long lptr = (long) curr;
+
+                    if (
+                            // StubPrecode
+                            // https://github.com/dotnet/runtime/blob/7830fddeead7907f6dd45f814fc3b8d49cd4b082/src/coreclr/vm/arm64/cgencpu.h#L567-L572
+                            *(uint*) (lptr + 0x00) == 0x18000095 && //pcaddi $r21,4
+                            *(uint*) (lptr + 0x04) == 0x28c022ae && //ld.d  $t2,$r21,8
+                            *(uint*) (lptr + 0x08) == 0x28c002b5 && //ld.d  $r21,$r21,0
+                            *(uint*) (lptr + 0x0c) == 0x4c0002a0    //jirl  $r0,$r21,0
+                       ) {
+                        IntPtr next = *(IntPtr*) (lptr + 0x10);
+                        return NotThePreStub(curr, next);
+                    } else if (
+                            // NDirectImportPrecode
+                            // https://github.com/dotnet/runtime/blob/7830fddeead7907f6dd45f814fc3b8d49cd4b082/src/coreclr/vm/arm64/cgencpu.h#L628-L633
+                            *(uint*) (lptr + 0x00) == 0x18000035 && //pcaddi $r21,1
+                            *(uint*) (lptr + 0x04) == 0x28c052ae && //ld.d  $t2,$r21,20
+                            *(uint*) (lptr + 0x08) == 0x28c032b5 && //ld.d  $r21,$r21,12
+                            *(uint*) (lptr + 0x0c) == 0x4c0002a0    //jirl  $r0,$r21,0
+                            ) {
+                        IntPtr next = *(IntPtr*) (lptr + 0x10);
+                        return NotThePreStub(curr, next);
+                    } else if (
+                            // FixupPrecode
+                            // https://github.com/dotnet/runtime/blob/7830fddeead7907f6dd45f814fc3b8d49cd4b082/src/coreclr/vm/arm64/cgencpu.h#L666-L672
+                            *(uint*) (lptr + 0x00) == 0x18000075 && //pcaddi  $r21,3
+                            *(uint*) (lptr + 0x04) == 0x02ffd2ae && //addi.d  $t2,$r21,-12
+                            *(uint*) (lptr + 0x08) == 0x28c012b5 && //ld.d  $r21,$r21,4
+                            *(uint*) (lptr + 0x0c) == 0x4c0002a0    //jirl  $r0,$r21,0
+                            ) {
+                        IntPtr next = *(IntPtr*) (lptr + 0x10);
+                        return NotThePreStub(curr, next);
+                    } else if (
+                            // ThisPtrRetBufPrecode
+                            // https://github.com/dotnet/runtime/blob/4da6b9a8d55913c0ea560d63590d35dc942425be/src/coreclr/vm/arm64/stubs.cpp#L641-L647
+                            *(uint*) (lptr + 0x00) == 0x18000055 && //pcaddi  r21,2
+                            *(uint*) (lptr + 0x04) == 0x28c042b5 && //ld.d  r21,16(r21)
+                            *(uint*) (lptr + 0x08) == 0x0380008f && //ori  r15,a0,0x0
+                            *(uint*) (lptr + 0x0c) == 0x038000a4 && //ori  a0,a1,0x0
+                            *(uint*) (lptr + 0x10) == 0x038001e5 && //ori  a1,r15,0x0
+                            *(uint*) (lptr + 0x14) == 0x4c0002a0    //jirl  r0,r21,0
+                            ) {
+                        IntPtr next = *(IntPtr*) (lptr + 0x18);
+                        return NotThePreStub(curr, next);
+                    }
+
+                    return curr;
+                }
+
+                int numIterations = 0;
+
+                IntPtr nextPtr = WalkPrecode(ptr);
+                while (nextPtr != ptr && numIterations < 16) {
+                    numIterations++;
+                    ptr = nextPtr;
+
+                    nextPtr = WalkPrecode(ptr);
+                }
             } else if (IntPtr.Size == 4) {
                 int iptr = (int) ptr;
                 // x86

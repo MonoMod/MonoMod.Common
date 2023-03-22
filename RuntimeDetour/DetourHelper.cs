@@ -63,8 +63,11 @@ namespace MonoMod.RuntimeDetour {
 
                     IDetourNativePlatform native;
 
+
                     if (PlatformHelper.Is(Platform.ARM)) {
                         native = new DetourNativeARMPlatform();
+                    } else if (PlatformHelper.Is(Platform.LoongArch64)) {
+                        native = new DetourNativeLoongArch64Platform();
                     } else {
                         native = new DetourNativeX86Platform();
                     }
