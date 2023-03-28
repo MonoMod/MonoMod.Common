@@ -127,10 +127,20 @@ namespace MonoMod.Utils {
                  */
                 try {
                     string arch;
-                    using (Process uname = Process.Start(new ProcessStartInfo("uname", "-m") {
-                        UseShellExecute = false,
-                        RedirectStandardOutput = true
-                    })) {
+                    ProcessStartInfo processInfo;
+                    if (Is(Platform.MacOS)) {
+                        // on Rosetta environment, `uname -m` shows actual hardware architecture "arm64"
+                        //   and `arch` shows current hardware architecture `i386`
+                        // We want to know current architecture so we call arch instead of uname.
+                        processInfo = new ProcessStartInfo("arch") {
+                            UseShellExecute = false, RedirectStandardOutput = true
+                        };
+                    } else {
+                        processInfo = new ProcessStartInfo("uname", "-m") {
+                            UseShellExecute = false, RedirectStandardOutput = true
+                        };
+                    }
+                    using (Process uname = Process.Start(processInfo)) {
                         arch = uname.StandardOutput.ReadLine().Trim();
                     }
 
